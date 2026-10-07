@@ -26,21 +26,11 @@ ZenGen is a mental health prediction platform. This case study demonstrates DevO
 
 ## 4. CI Pipeline
 
-The GitHub Actions CI workflow automates:
-
-1. Repository checkout.
-2. Node.js environment setup.
-3. Dependency installation.
-4. TypeScript checking.
-5. Application build.
-
-The CI workflow completed successfully in GitHub Actions.
+No `.github/workflows` directory is present in this repository checkout, so there is no GitHub Actions workflow definition to inspect or run here. Earlier statements about a successful CI run cannot be verified from this checkout.
 
 ## 5. Docker Configuration
 
-The Dockerfile defines a containerized build and production startup process. The `.dockerignore` file excludes unnecessary files and environment secrets from the build context.
-
-Local Docker execution was not performed because Docker was unavailable on the working laptop.
+The Dockerfile defines a containerized build and production startup process. Its Node.js base image is Node 22, which satisfies the monitoring client's supported engine range. The root `.dockerignore` excludes local environment files from the image build context. The ZenGen Docker image built successfully and the application container became healthy against Neon.
 
 ## 6. Kubernetes Configuration
 
@@ -52,19 +42,11 @@ The Kubernetes configuration includes:
 * Resource requests and limits.
 * NodePort service configuration.
 
-The Kubernetes manifests were validated through GitHub Actions.
+The Kubernetes manifests are present, but this checkout has no workflow definition to validate them automatically. Their live application deployment has not been verified here.
 
 ## 7. Rolling Update and Rollback
 
-A GitHub Actions workflow created a temporary Kubernetes cluster using Kind and demonstrated:
-
-1. Initial deployment.
-2. Rolling update.
-3. Failed image rollout.
-4. Rollback to the previous working revision.
-5. Deployment status verification.
-
-The demonstration used a temporary Nginx workload to verify Kubernetes behavior, not a live ZenGen application deployment.
+No GitHub Actions workflow source for a Kind rollout/rollback demonstration is present in this checkout. The Kubernetes manifests describe ZenGen; a live ZenGen cluster deployment was not performed.
 
 ## 8. Ansible Configuration
 
@@ -79,18 +61,69 @@ The playbook was prepared but not executed against a live server.
 
 ## 9. Monitoring
 
-A Prometheus configuration was prepared with a 15-second scrape interval and a ZenGen target at `localhost:5000/metrics`.
+### Implementation and verification status
 
-The metrics endpoint and live Prometheus collection have not yet been verified.
+| Status | Item |
+| --- | --- |
+| Implemented and verified | ZenGen exposes `/metrics` using `@prometheus-io/client`. Live HTTP requests confirmed process uptime, request totals, 4xx errors, and latency histogram samples. The metrics middleware excludes `/metrics` and uses only normalized method and status-code labels. |
+| Implemented and verified | The Neon `ZenGen` project was created in `aws-ap-southeast-1` (Singapore), PostgreSQL 17. Drizzle's existing schema was applied without resetting the database; the `users`, `assessments`, `chat_messages`, and `resources` tables were verified. |
+| Implemented and verified | Prometheus v3.5.0 reports the `zengen` scrape target UP. Grafana 12.1.0 is healthy, its provisioned Prometheus datasource health is OK, and the provisioned dashboard contains exactly the five required panels. |
+| Implemented and verified | Generated HTTP traffic produced live data for all five Prometheus expressions: uptime, request total, request rate, p95 latency, and 4xx/5xx error rate. The final Prometheus check observed 187 requests, approximately 0.89 requests/second, approximately 0.0475 seconds p95 latency, and nonzero error rate from intentional unauthenticated 401 test traffic. |
+| Implemented and verified | `npm install`, `npm run db:push`, `npm run check`, `npm run build`, Prometheus `promtool check config`, Docker Compose configuration validation, Docker image build, and service health checks completed successfully. |
+| Evidence | Screenshots of the live `/metrics` response, Prometheus target UP, and the Grafana dashboard were captured in the interactive session. They are not stored as image files in the repository. |
+
+ZenGen's existing `@neondatabase/serverless` driver reads `DATABASE_URL` from the environment. A local root `.env` file supplies it to Compose through the service `env_file`; `.env` is ignored by Git and Docker. The committed `.env.example` contains only a placeholder. No real connection string, session secret, or API key is tracked.
+
+The monitoring stack binds application, Prometheus, and Grafana ports to `127.0.0.1`. Grafana anonymous access is read-only. The session secret is generated locally and stored alongside `DATABASE_URL` in the ignored `.env`.
+
+### Run the stack (PowerShell)
+
+In the repository root, set the existing Neon connection string in the ignored `.env` file without printing it. This example prompts for it as a secure string:
+
+```powershell
+Set-Location -LiteralPath 'D:\SYMBIOSIS UNIVERSITY\Final Year\Seventh Semester\DevOps +Lab\project\DevOps-CA2_2023_27-main'
+$secureDbUrl = Read-Host "Enter the Neon DATABASE_URL" -AsSecureString
+$databaseUrl = [System.Net.NetworkCredential]::new("", $secureDbUrl).Password
+$sessionSecret = [guid]::NewGuid().ToString("N")
+Set-Content -Path .env -Value @("DATABASE_URL=$databaseUrl", "SESSION_SECRET=$sessionSecret") -Encoding Ascii
+Remove-Variable secureDbUrl,databaseUrl,sessionSecret
+npm.cmd run db:push
+docker compose -f devops/monitoring/docker-compose.yml up --build -d
+docker compose -f devops/monitoring/docker-compose.yml ps
+```
+
+`db:push` applies the checked-in Drizzle schema to the selected Neon database. Do not run it against a production database without reviewing the schema change first. Never add secrets to `.env.example`, source files, or Git.
+
+Generate successful and expected unauthenticated requests so the traffic and error panels have data:
+
+```powershell
+1..30 | ForEach-Object {
+  curl.exe -s -o NUL http://127.0.0.1:5000/
+  curl.exe -s -o NUL http://127.0.0.1:5000/api/user
+}
+curl.exe -f http://127.0.0.1:5000/metrics
+Invoke-RestMethod http://127.0.0.1:9090/api/v1/targets
+```
+
+`/api/user` returns 401 when no user session is supplied; that expected response contributes to the HTTP error metric. Confirm the `zengen` target reports `health: "up"` in Prometheus at <http://127.0.0.1:9090/targets>. Open the provisioned **ZenGen Application Monitoring** dashboard at <http://127.0.0.1:3000/d/zengen-monitoring/zengen-application-monitoring>. The five panels are **Application Uptime**, **Total HTTP Requests**, **Request Rate**, **P95 Request Latency**, and **Error Rate**.
+
+### CA-II screenshots to capture after end-to-end verification
+
+1. Grafana's **ZenGen Application Monitoring** dashboard after generating requests, with all five panels and real values visible.
+2. Prometheus **Status → Targets** showing the `zengen` target as **UP** and its last scrape error empty.
+3. The ZenGen `/metrics` response showing `process_uptime_seconds`, `http_requests_total`, `http_errors_total`, and `http_request_duration_seconds` samples.
+4. Optionally, `docker compose ps` showing ZenGen healthy and Prometheus/Grafana running.
+
+Stop the stack with `docker compose -f devops/monitoring/docker-compose.yml down`. Use `down --volumes` only if you also intend to delete the stored Prometheus and Grafana data.
 
 ## 10. Results
 
-The CI build, Kubernetes manifest validation, and Kubernetes rollout/rollback demonstration workflows completed successfully in GitHub Actions.
+Live application, database schema, Prometheus scrape, Grafana datasource, and all five dashboard queries were verified. TypeScript checking, the production build, Prometheus configuration validation, dashboard JSON validation, and Docker Compose startup also passed. The `npm install` audit reports 25 dependency findings (2 low, 6 moderate, 16 high, and 1 critical); those existing dependency findings were not automatically changed as part of monitoring.
 
 ## 11. Conclusion
 
-This case study demonstrates automated build verification, Kubernetes manifest validation, and an automated rollout/rollback demonstration. Docker deployment, live Ansible execution, and Prometheus monitoring remain potential implementation extensions.
+The Neon-backed monitoring stack has been run end-to-end. No GitHub Actions workflow files are present in this checkout. Kubernetes deployment and live Ansible execution remain unverified.
 
 ## 12. Evidence
 
-Screenshots of successful GitHub Actions runs and relevant configuration files are included in the assignment evidence folder.
+Monitoring screenshots were captured in the interactive session; screenshot image files were not added to the repository. See section 9 for the evidence items and optional container-status capture.

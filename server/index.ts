@@ -5,11 +5,14 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors"; // ✅ ADD
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { collectHttpMetrics, serveMetrics } from "./metrics";
 
 const app = express();
 
 // ✅ Enable CORS (important for Netlify → Render)
 app.use(cors());
+app.use(collectHttpMetrics);
+app.get("/metrics", serveMetrics);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
