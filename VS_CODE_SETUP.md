@@ -37,10 +37,10 @@ Or use File > Open Folder in VS Code and navigate to the project directory.
    OPENAI_API_KEY=your_openai_api_key_here
    
    # The PostgreSQL database connection (already configured for Neon)
-   DATABASE_URL=postgresql://neondb_owner:npg_lNLMy2qevG3u@ep-young-union-a1teo6iq-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+   DATABASE_URL=your_neon_connection_string_here
    
    # For session security
-   SESSION_SECRET=zengen_secret_key_for_sessions
+   SESSION_SECRET=generate_a_random_secret
    ```
    
 3. If you're using your own PostgreSQL database, replace the DATABASE_URL with your connection string

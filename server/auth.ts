@@ -32,9 +32,14 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const PostgresSessionStore = connectPg(session);
+  const sessionSecret = process.env.SESSION_SECRET;
+
+  if (!sessionSecret && process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
 
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "zengen-secret-key",
+    secret: sessionSecret || "zengen-secret-key",
     resave: false,
     saveUninitialized: false,
     cookie: {

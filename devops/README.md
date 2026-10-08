@@ -84,9 +84,11 @@ In the repository root, set the existing Neon connection string in the ignored `
 Set-Location -LiteralPath 'D:\SYMBIOSIS UNIVERSITY\Final Year\Seventh Semester\DevOps +Lab\project\DevOps-CA2_2023_27-main'
 $secureDbUrl = Read-Host "Enter the Neon DATABASE_URL" -AsSecureString
 $databaseUrl = [System.Net.NetworkCredential]::new("", $secureDbUrl).Password
+$secureGeminiKey = Read-Host "Enter the Gemini API key" -AsSecureString
+$geminiApiKey = [System.Net.NetworkCredential]::new("", $secureGeminiKey).Password
 $sessionSecret = [guid]::NewGuid().ToString("N")
-Set-Content -Path .env -Value @("DATABASE_URL=$databaseUrl", "SESSION_SECRET=$sessionSecret") -Encoding Ascii
-Remove-Variable secureDbUrl,databaseUrl,sessionSecret
+Set-Content -Path .env -Value @("DATABASE_URL=$databaseUrl", "SESSION_SECRET=$sessionSecret", "GEMINI_API_KEY=$geminiApiKey") -Encoding Ascii
+Remove-Variable secureDbUrl,databaseUrl,secureGeminiKey,geminiApiKey,sessionSecret
 npm.cmd run db:push
 docker compose -f devops/monitoring/docker-compose.yml up --build -d
 docker compose -f devops/monitoring/docker-compose.yml ps
@@ -115,6 +117,17 @@ Invoke-RestMethod http://127.0.0.1:9090/api/v1/targets
 4. Optionally, `docker compose ps` showing ZenGen healthy and Prometheus/Grafana running.
 
 Stop the stack with `docker compose -f devops/monitoring/docker-compose.yml down`. Use `down --volumes` only if you also intend to delete the stored Prometheus and Grafana data.
+
+## 13. Netlify Production Deployment
+
+| Status | Item |
+| --- | --- |
+| Configured, not deployed or verified | `netlify.toml` builds the Vite frontend and routes `/api/*`, `/health`, and `/metrics` to a Netlify Function wrapping the Express application. |
+| Required before deployment | Set `DATABASE_URL`, `SESSION_SECRET`, and `GEMINI_API_KEY` as private Netlify site environment variables. Never put their values in `netlify.toml`, frontend code, or Git. |
+| Not verified | Netlify account/site authorization, production database access, Gemini responses, and the public website. A Gemini key has not yet been saved to the local environment. |
+| Separate monitoring | The Prometheus/Grafana stack documented above monitors the local Docker deployment only. It does not monitor Netlify Functions. |
+
+The Express API uses `serverless-http` through `netlify/functions/api.mjs`; the frontend continues to use same-origin `/api/...` URLs. The configured Gemini model is `gemini-3.6-flash` and is listed in Google's [Gemini API model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash). A production deployment and chatbot response must still be tested after the required private environment variables and Netlify authorization are available.
 
 ## 10. Results
 

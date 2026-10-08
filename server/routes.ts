@@ -132,8 +132,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const aiResult = await model.generateContent(prompt);
             const text = aiResult.response.text();
 
-            console.log("Gemini response:", text);
-
             try {
               const cleanText = text.replace(/```json|```/g, "").trim();
               const parsed = JSON.parse(cleanText);
@@ -146,7 +144,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
           } catch (err) {
-            console.log("❌ Gemini crashed:", err);
+            console.error(
+              "Assessment Gemini request failed:",
+              err instanceof Error ? err.name : "Unknown error",
+            );
           }
         }
 
@@ -221,10 +222,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
-        return res.json({
+        return res.status(503).json({
           message: {
             role: "assistant",
-            content: "Gemini API key missing",
+            content: "The chat service is not configured.",
           },
         });
       }
@@ -251,13 +252,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: assistantMessage });
 
     } catch (error) {
-      console.error("CHAT ERROR:", error);
+      console.error(
+        "Chat Gemini request failed:",
+        error instanceof Error ? error.name : "Unknown error",
+      );
 
-      res.json({
+      res.status(502).json({
         message: {
           role: "assistant",
-          content:
-            "⚠️ Chat failed. Check Gemini API key or billing.",
+          content: "The chat service is temporarily unavailable. Please try again.",
         },
       });
 
