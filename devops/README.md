@@ -38,15 +38,31 @@ The Kubernetes configuration includes:
 
 * Deployment with two replicas.
 * Container port 5000.
-* Readiness and liveness probes.
+* HTTP readiness and liveness probes against `/health`.
+* `DATABASE_URL`, `GEMINI_API_KEY`, and `SESSION_SECRET` loaded from a Kubernetes Secret.
 * Resource requests and limits.
 * NodePort service configuration.
 
-The Kubernetes manifests are present, but this checkout has no workflow definition to validate them automatically. Their live application deployment has not been verified here.
+The manifests were applied to Docker Desktop Kubernetes (`docker-desktop`). Both replicas became Ready, the Secret-backed Neon and Gemini environment was available in the pods, the `/health` and `/metrics` endpoints returned HTTP 200, a read-only Neon query succeeded, and a harmless chat request received a generated response. The Service is NodePort `30080` with both pod endpoints; the Docker Desktop node address was not directly reachable from Windows, so application requests were verified through `kubectl port-forward`.
+
+### Deploy locally with Docker Desktop Kubernetes
+
+From the project root, create/update the Kubernetes Secret from the ignored local `.env`; the command sends values directly to the Kubernetes API and does not print them:
+
+```powershell
+kubectl create secret generic zengen-secrets --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f devops/kubernetes/deployment.yaml
+kubectl apply -f devops/kubernetes/service.yaml
+kubectl rollout status deployment/zengen-deployment
+kubectl get deployment,pods -l app=zengen
+kubectl get service zengen-service
+```
+
+Never commit `.env` or a Secret manifest containing encoded values. The service uses NodePort `30080`; if that port is not reachable from Windows on the Docker Desktop node, use `kubectl port-forward service/zengen-service 5002:5000` to test the application locally.
 
 ## 7. Rolling Update and Rollback
 
-No GitHub Actions workflow source for a Kind rollout/rollback demonstration is present in this checkout. The Kubernetes manifests describe ZenGen; a live ZenGen cluster deployment was not performed.
+No GitHub Actions workflow source for a Kind rollout/rollback demonstration is present in this checkout. The ZenGen Kubernetes Deployment and Service were applied and verified locally on Docker Desktop; a Kind rollout/rollback workflow was not performed.
 
 ## 8. Ansible Configuration
 
