@@ -2,10 +2,10 @@ import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { AuthProvider } from "./hooks/use-auth";
-import { ProtectedRoute } from "./lib/protected-route";
+import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Loader2 } from "lucide-react";
 
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
@@ -22,7 +22,33 @@ import AuthPage from "@/pages/auth-page";
 import Navigation from "@/components/Navigation";
 import MobileNavigation from "@/components/MobileNavigation";
 
-function AuthenticatedApp() {
+function AppContent() {
+  const { user, isLoading } = useAuth();
+
+  // Clean loading indicator while determining auth state
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">
+          Loading ZenGen...
+        </p>
+      </div>
+    );
+  }
+
+  // If unauthenticated, force the Sign In / Create Account page immediately
+  if (!user) {
+    return (
+      <Switch>
+        <Route path="/auth" component={AuthPage} />
+        {/* Any path for unauthenticated users directly renders AuthPage */}
+        <Route component={AuthPage} />
+      </Switch>
+    );
+  }
+
+  // Authenticated app experience
   return (
     <>
       <Navigation />
@@ -33,19 +59,21 @@ function AuthenticatedApp() {
             <Redirect to="/home" />
           </Route>
 
-          {/* Authentication Page */}
-          <Route path="/auth" component={AuthPage} />
+          {/* Already logged in: redirect /auth back to /home */}
+          <Route path="/auth">
+            <Redirect to="/home" />
+          </Route>
 
           {/* Protected routes */}
-          <ProtectedRoute path="/home" component={Home} />
-          <ProtectedRoute path="/assessment" component={Assessment} />
-          <ProtectedRoute path="/assessment/intro" component={AssessmentIntro} />
-          <ProtectedRoute path="/assessment/question/:id" component={AssessmentQuestion} />
-          <ProtectedRoute path="/assessment/results" component={AssessmentResults} />
-          <ProtectedRoute path="/chat" component={Chat} />
-          <ProtectedRoute path="/resources" component={Resources} />
-          <ProtectedRoute path="/profile" component={Profile} />
-          <ProtectedRoute path="/crisis" component={CrisisSupport} />
+          <Route path="/home" component={Home} />
+          <Route path="/assessment" component={Assessment} />
+          <Route path="/assessment/intro" component={AssessmentIntro} />
+          <Route path="/assessment/question/:id" component={AssessmentQuestion} />
+          <Route path="/assessment/results" component={AssessmentResults} />
+          <Route path="/chat" component={Chat} />
+          <Route path="/resources" component={Resources} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/crisis" component={CrisisSupport} />
 
           {/* 404 fallback */}
           <Route component={NotFound} />
@@ -63,7 +91,7 @@ function App() {
         <AuthProvider>
           <TooltipProvider>
             <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
-              <AuthenticatedApp />
+              <AppContent />
             </div>
             <Toaster />
           </TooltipProvider>
