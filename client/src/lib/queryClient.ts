@@ -3,7 +3,18 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let cleanMessage = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.message === "string") {
+        cleanMessage = parsed.message;
+      } else if (parsed && typeof parsed.error === "string") {
+        cleanMessage = parsed.error;
+      }
+    } catch {
+      cleanMessage = text.replace(/^\d{3}:\s*/, "");
+    }
+    throw new Error(cleanMessage);
   }
 }
 

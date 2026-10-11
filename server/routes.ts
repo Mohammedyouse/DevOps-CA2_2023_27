@@ -5,7 +5,7 @@ import { assessmentQuestions } from "../shared/schema.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { setupAuth } from "./auth";
 
-const MODEL_NAME = "gemini-3.6-flash";
+const MODEL_NAME = "gemini-3.8-flash";
 
 // Initialize gemenai ai 
 
@@ -129,7 +129,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               model: MODEL_NAME
             });
 
-            const aiResult = await model.generateContent(prompt);
+            const withTimeout = <T>(p: Promise<T>, ms: number) =>
+              Promise.race([
+                p,
+                new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Gemini timeout")), ms)),
+              ]);
+
+            const aiResult = await withTimeout(model.generateContent(prompt), 10000);
             const text = aiResult.response.text();
 
             try {
@@ -151,31 +157,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // 🔥 fallback مهم
+        // Only fallback if Gemini did not generate summary or recommendations
         if (!summary || !recommendations || recommendations.length === 0) {
-          summary = `Your overall wellness score is ${overallScore}/100. You appear to be doing generally well.`;
-
-          recommendations = [
-            {
-              title: "Take a break",
-              description: "Give yourself some rest",
-              icon: "heart"
-            },
-            {
-              title: "Practice breathing",
-              description: "Try simple breathing exercises",
-              icon: "book"
-            },
-            {
-              title: "Talk to someone",
-              description: "Share your feelings with a friend",
-              icon: "users"
-            }
-          ];
-        }
-        else {
-          // fallback
-          summary = `Your overall wellness score is ${overallScore}/100. You appear to be doing generally well.`;
+          summary = `Your overall wellness score is ${overallScore}/100. Based on your responses, you are navigating daily stresses with self-awareness. Consider incorporating mindful rest and balanced routines.`;
           recommendations = getFallbackRecommendations();
         }
 
@@ -195,8 +179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recommendations
         };
 
-        // Store assessment in database (anonymously)
+        // Store assessment in database (associate with user if authenticated)
+        const userId = req.isAuthenticated() && req.user ? req.user.id : null;
         await storage.createAssessment({
+          userId,
           answers,
           results: result
         });
@@ -211,6 +197,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Server error" });
     }
   });
+
+  // Assessment history endpoint for authenticated user
+  app.get("/api/assessment/history", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const history = await storage.getAssessmentsByUserId(req.user.id);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching assessment history:", error);
+      res.status(500).json({ message: "Failed to fetch assessment history" });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
       const { messages } = req.body;
@@ -219,51 +220,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Messages required" });
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      // Extract last user message
+      const lastMessage = messages[messages.length - 1]?.content || "";
 
-      if (!apiKey) {
-        return res.status(503).json({
+      // Crisis escalation check
+      const crisisPattern = /\b(suicide|kill myself|end my life|self[- ]?harm|cutting myself|die|want to die|take my own life)\b/i;
+      const isCrisis = crisisPattern.test(lastMessage);
+
+      if (isCrisis) {
+        const crisisResponse = "I'm really concerned about what you're sharing. Please know that you are not alone, your life is valuable, and immediate help is here for you. Please connect right away with the Suicide & Crisis Lifeline by calling or texting 988 (free, confidential, 24/7). You can also text HOME to 741741 to speak with a trained crisis counselor, or call 911 if you are in immediate danger. Please reach out to a trusted family member, teacher, or counselor right now.";
+        return res.json({
           message: {
             role: "assistant",
-            content: "The chat service is not configured.",
+            content: crisisResponse,
           },
         });
       }
 
+      const apiKey = process.env.GEMINI_API_KEY;
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+      if (!apiKey || apiKey.trim() === "") {
+        const fallbackText = generateRuleBasedResponse(lastMessage.toLowerCase(), "", "");
+        return res.json({
+          message: {
+            role: "assistant",
+            content: fallbackText,
+          },
+        });
+      }
 
-      // get last user message
-      const lastMessage = messages[messages.length - 1]?.content || "";
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
-      const result = await model.generateContent(
-        "You are a supportive mental health assistant for teenagers. Give helpful, practical advice in 2-3 sentences.\nUser: " + lastMessage
-      );
+        const prompt = `You are ZenGen Assistant, an empathetic, supportive mental health companion designed specifically for teenagers.
+Guidelines:
+- Provide clear, actionable, practical coping advice in 2-4 sentences.
+- Use a calm, reassuring, and non-judgmental tone.
+- Clearly state that you are an AI wellness companion, not a licensed therapist or physician, and do not provide clinical diagnoses.
+- If the user expresses thoughts of self-harm, suicide, or severe crisis, prioritize safety: urge them to contact emergency services (911) or the 988 Suicide & Crisis Lifeline (call/text 988 or text HOME to 741741).
 
-      const response = await result.response;
-      const text = response.text();
+User message: ${lastMessage}`;
 
-      const assistantMessage = {
-        role: "assistant",
-        content: text,
-      };
+        const withTimeout = <T>(p: Promise<T>, ms: number) =>
+          Promise.race([
+            p,
+            new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Gemini timeout")), ms)),
+          ]);
 
-      res.json({ message: assistantMessage });
+        const result = await withTimeout(model.generateContent(prompt), 10000);
+        const response = await result.response;
+        const text = response.text().trim();
 
+        const assistantMessage = {
+          role: "assistant",
+          content: text,
+        };
+
+        if (req.isAuthenticated() && req.user) {
+          try {
+            await storage.createChatMessage({
+              userId: req.user.id,
+              role: "user",
+              content: lastMessage,
+            });
+            await storage.createChatMessage({
+              userId: req.user.id,
+              role: "assistant",
+              content: text,
+            });
+          } catch (dbErr) {
+            console.error("Could not save chat message to db:", dbErr);
+          }
+        }
+
+        res.json({ message: assistantMessage });
+      } catch (geminiError) {
+        console.error("Gemini chat error, using supportive fallback:", geminiError);
+        const fallbackText = generateRuleBasedResponse(lastMessage.toLowerCase(), "", "");
+        res.json({
+          message: {
+            role: "assistant",
+            content: fallbackText,
+          },
+        });
+      }
     } catch (error) {
-      console.error(
-        "Chat Gemini request failed:",
-        error instanceof Error ? error.name : "Unknown error",
-      );
-
-      res.status(502).json({
+      console.error("Chat error:", error);
+      res.status(500).json({
         message: {
           role: "assistant",
-          content: "The chat service is temporarily unavailable. Please try again.",
+          content: "I'm having trouble processing your message right now. If you're in distress, please call or text 988 for immediate help.",
         },
       });
-
     }
   });
 
@@ -427,68 +476,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 // Helper to initialize sample resources
 async function initializeSampleResources() {
-  const resources = await storage.getResources();
+  const existing = await storage.getResources();
+  const existingTitles = new Set(existing.map(r => r.title));
 
-  if (resources.length === 0) {
-    // Add sample resources
-    const sampleResources = [
-      {
-        title: "Understanding Anxiety: A Teen's Guide",
-        description: "Learn what anxiety is, how it affects you, and ways to manage it.",
-        type: "article",
-        icon: "book",
-        duration: "5 min read",
-        tags: ["Anxiety", "Self-Care"],
-        url: "https://www.nimh.nih.gov/health/publications/anxiety-disorders-in-children-and-adolescents"
-      },
-      {
-        title: "Breathing Techniques for Instant Calm",
-        description: "Simple breathing exercises that help reduce stress and anxiety quickly.",
-        type: "video",
-        icon: "video",
-        duration: "3 min video",
-        tags: ["Anxiety", "Stress Management", "Mindfulness"],
-        url: "https://www.youtube.com/watch?v=SEfs5TJZ6Nk"
-      },
-      {
-        title: "Talking to Parents About Mental Health",
-        description: "Tips for starting difficult conversations with your family.",
-        type: "guide",
-        icon: "file-text",
-        duration: "4 min read",
-        tags: ["Communication", "Family"],
-        url: "https://www.mhanational.org/time-talk-talking-your-parents"
-      },
-      {
-        title: "The Science of Sleep for Teens",
-        description: "Why sleep matters for your mental health and how to get better rest.",
-        type: "article",
-        icon: "book",
-        duration: "6 min read",
-        tags: ["Sleep", "Self-Care"],
-        url: "https://www.sleepfoundation.org/teens-and-sleep"
-      },
-      {
-        title: "5-Minute Meditation for School Stress",
-        description: "A quick guided meditation you can do before tests or presentations.",
-        type: "video",
-        icon: "video",
-        duration: "5 min video",
-        tags: ["Stress Management", "Mindfulness", "School"],
-        url: "https://www.youtube.com/watch?v=F7PxEy5IyV4"
-      },
-      {
-        title: "Overcoming Social Anxiety at School",
-        description: "Practical strategies for feeling more comfortable in social situations.",
-        type: "guide",
-        icon: "file-text",
-        duration: "7 min read",
-        tags: ["Social Anxiety", "School"],
-        url: "https://childmind.org/article/what-to-do-and-not-do-when-children-are-anxious/"
-      }
-    ];
+  const allSampleResources = [
+    {
+      title: "Understanding Anxiety: A Teen's Guide",
+      description: "Learn what anxiety is, how it affects your body and mind, and clinical ways to manage it.",
+      type: "article",
+      icon: "book",
+      duration: "5 min read",
+      tags: ["Anxiety", "Self-Care"],
+      url: "https://www.nimh.nih.gov/health/publications/anxiety-disorders-in-children-and-adolescents"
+    },
+    {
+      title: "Breathing Techniques for Instant Calm",
+      description: "Simple, medically backed breathing exercises that help reduce acute stress and panic quickly.",
+      type: "video",
+      icon: "video",
+      duration: "3 min video",
+      tags: ["Anxiety", "Stress Management", "Mindfulness"],
+      url: "https://www.youtube.com/watch?v=SEfs5TJZ6Nk"
+    },
+    {
+      title: "Talking to Parents About Mental Health",
+      description: "Evidence-based tips and conversation starters for discussing your mental health with family.",
+      type: "guide",
+      icon: "file-text",
+      duration: "4 min read",
+      tags: ["Communication", "Family", "Self-Care"],
+      url: "https://www.mhanational.org/time-talk-talking-your-parents"
+    },
+    {
+      title: "The Science of Sleep for Teens",
+      description: "Why circadian rhythms shift in adolescence and actionable habits for deeper, restorative sleep.",
+      type: "article",
+      icon: "book",
+      duration: "6 min read",
+      tags: ["Sleep", "Self-Care"],
+      url: "https://www.sleepfoundation.org/teens-and-sleep"
+    },
+    {
+      title: "5-Minute Meditation for School Stress",
+      description: "A quick guided meditation designed to calm test anxiety and academic overwhelm.",
+      type: "video",
+      icon: "video",
+      duration: "5 min video",
+      tags: ["Stress Management", "Mindfulness", "School"],
+      url: "https://www.youtube.com/watch?v=F7PxEy5IyV4"
+    },
+    {
+      title: "Overcoming Social Anxiety at School",
+      description: "Practical behavioral strategies from clinical psychologists for managing classroom and peer anxiety.",
+      type: "guide",
+      icon: "file-text",
+      duration: "7 min read",
+      tags: ["Social Anxiety", "School", "Anxiety"],
+      url: "https://childmind.org/article/what-to-do-and-not-do-when-children-are-anxious/"
+    },
+    {
+      title: "Teen Depression: Understanding the Signs",
+      description: "Clear guidance from Mayo Clinic specialists on recognizing depressive patterns and finding support.",
+      type: "article",
+      icon: "book",
+      duration: "6 min read",
+      tags: ["Depression", "Self-Care"],
+      url: "https://www.mayoclinic.org/diseases-conditions/teen-depression/symptoms-causes/syc-20350985"
+    },
+    {
+      title: "Box Breathing Technique for Acute Stress",
+      description: "A 4x4 Navy SEAL-tested breathing method that rapidly regulates the parasympathetic nervous system.",
+      type: "video",
+      icon: "video",
+      duration: "4 min video",
+      tags: ["Stress Management", "Mindfulness", "Anxiety"],
+      url: "https://www.youtube.com/watch?v=tEmt1Znux58"
+    },
+    {
+      title: "Managing Study Pressure & Academic Burnout",
+      description: "Effective pacing, study breaks, and psychological strategies from Johns Hopkins Medicine.",
+      type: "guide",
+      icon: "file-text",
+      duration: "5 min read",
+      tags: ["School", "Stress Management", "Self-Care"],
+      url: "https://www.hopkinsmedicine.org/health/wellness-and-prevention/how-to-help-your-teen-deal-with-stress"
+    },
+    {
+      title: "Mindfulness and Grounding for Adolescents",
+      description: "Harvard Health insights on neuroplasticity and how mindfulness builds resilience against anxiety.",
+      type: "article",
+      icon: "book",
+      duration: "5 min read",
+      tags: ["Mindfulness", "Self-Care", "Anxiety"],
+      url: "https://www.health.harvard.edu/blog/mindfulness-in-education-2019081417539"
+    }
+  ];
 
-    for (const resource of sampleResources) {
+  for (const resource of allSampleResources) {
+    if (!existingTitles.has(resource.title)) {
       await storage.createResource(resource);
     }
   }

@@ -45,6 +45,7 @@ export function setupAuth(app: Express) {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
     },
     store: new PostgresSessionStore({
       pool,
@@ -60,7 +61,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        const user = await storage.getUserByUsername(username);
+        const user = await storage.getUserByUsername(username.trim());
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false);
         } else {
@@ -85,14 +86,28 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const existingUser = await storage.getUserByUsername(req.body.username);
+      const username = (req.body.username || "").trim();
+      const password = req.body.password;
+
+      if (!username || username.length < 3) {
+        return res.status(400).json({ message: "Username or email must be at least 3 characters" });
+      }
+      if (!password || password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
+        const isEmail = username.includes("@");
+        const message = isEmail
+          ? "An account with this email already exists. Please sign in instead."
+          : "An account with this username already exists. Please sign in instead.";
+        return res.status(400).json({ message });
       }
 
       const user = await storage.createUser({
-        ...req.body,
-        password: await hashPassword(req.body.password),
+        username,
+        password: await hashPassword(password),
       });
 
       req.login(user, (err) => {
@@ -101,7 +116,7 @@ export function setupAuth(app: Express) {
       });
     } catch (error) {
       console.error("Registration error:", error);
-      res.status(500).json({ message: "Registration failed" });
+      res.status(500).json({ message: "Registration failed. Please try again." });
     }
   });
 

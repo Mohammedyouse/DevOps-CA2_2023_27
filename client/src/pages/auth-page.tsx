@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useLocation, Redirect } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -11,9 +9,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, HeartHandshake, Sparkles, Brain, Loader2 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
+import zengenLogo from "../assets/zengen_logo.png";
 
 const loginSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+  username: z.string().min(3, "Please enter your username or email (at least 3 characters)"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -26,11 +27,14 @@ const registerSchema = loginSchema.extend({
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<string>("login");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const { user, loginMutation, registerMutation } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Login form
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -39,7 +43,6 @@ export default function AuthPage() {
     },
   });
 
-  // Register form
   const registerForm = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -49,56 +52,117 @@ export default function AuthPage() {
     },
   });
 
-  // Handlers
   const onLoginSubmit = (values: z.infer<typeof loginSchema>) => {
-    loginMutation.mutate(values, {
-      onSuccess: () => {
-        toast({
-          title: "Logged in successfully",
-          description: "Welcome back!",
-        });
-        navigate("/home");
+    loginMutation.mutate(
+      {
+        username: values.username.trim(),
+        password: values.password,
       },
-    });
+      {
+        onSuccess: () => {
+          toast({
+            title: "Welcome back!",
+            description: "Signed in successfully to your ZenGen space.",
+          });
+          navigate("/home");
+        },
+        onError: (err) => {
+          const rawMsg = err.message || "Invalid credentials. Please verify your details.";
+          toast({
+            title: "Sign in failed",
+            description: rawMsg,
+            variant: "destructive",
+          });
+        },
+      }
+    );
   };
 
   const onRegisterSubmit = (values: z.infer<typeof registerSchema>) => {
-    registerMutation.mutate({
-      username: values.username,
-      password: values.password,
-    }, {
-      onSuccess: () => {
-        toast({
-          title: "Registered successfully",
-          description: "Welcome to ZenGen!",
-        });
-        navigate("/home");
+    const trimmedUsername = values.username.trim();
+    registerMutation.mutate(
+      {
+        username: trimmedUsername,
+        password: values.password,
       },
-    });
+      {
+        onSuccess: () => {
+          toast({
+            title: "Account created!",
+            description: "Welcome to ZenGen. Your wellness journey begins here.",
+          });
+          navigate("/home");
+        },
+        onError: (err) => {
+          const rawMsg = err.message || "Could not register. Username may already be in use.";
+          const isDuplicate =
+            rawMsg.toLowerCase().includes("already exists") ||
+            rawMsg.toLowerCase().includes("sign in");
+
+          if (isDuplicate) {
+            toast({
+              title: "Account Already Exists",
+              description: rawMsg,
+              variant: "destructive",
+            });
+            loginForm.setValue("username", trimmedUsername);
+            setActiveTab("login");
+          } else {
+            toast({
+              title: "Registration failed",
+              description: rawMsg,
+              variant: "destructive",
+            });
+          }
+        },
+      }
+    );
   };
 
-  // Redirect if already logged in
+  // If already logged in, redirect straight to /home
   if (user) {
     return <Redirect to="/home" />;
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-50">
-      <div className="grid md:grid-cols-2 gap-6 w-full max-w-6xl bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Form Section */}
-        <div className="p-6 md:p-10 flex flex-col justify-center">
-          <div className="mb-6 text-center md:text-left">
-            <h1 className="text-2xl md:text-3xl font-bold mb-2 text-gray-900">Welcome to ZenGen</h1>
-            <p className="text-gray-600">Your companion for teen mental health.</p>
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 bg-background relative overflow-hidden transition-colors">
+      {/* Absolute top right theme toggle */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+
+      {/* Background ambient gradient glow */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-secondary/20 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-4xl grid md:grid-cols-2 rounded-3xl border border-border bg-card shadow-xl overflow-hidden relative z-10 transition-colors">
+        {/* Left Side: Form */}
+        <div className="p-8 sm:p-10 flex flex-col justify-center">
+          <div className="mb-6 flex items-center gap-3">
+            <img src={zengenLogo} alt="ZenGen Logo" className="h-10 w-10 object-contain" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">ZenGen</h1>
+              <p className="text-xs text-muted-foreground">Teen Mental Wellness Companion</p>
+            </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-2 mb-6">
-              <TabsTrigger value="login">Log In</TabsTrigger>
-              <TabsTrigger value="register">Sign Up</TabsTrigger>
+            <TabsList className="grid grid-cols-2 mb-6 bg-muted/60 p-1 rounded-xl">
+              <TabsTrigger value="login" className="rounded-lg text-xs font-semibold">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="register" className="rounded-lg text-xs font-semibold">
+                Create Account
+              </TabsTrigger>
             </TabsList>
 
+            {/* Login Tab */}
             <TabsContent value="login">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-foreground">Welcome Back</h2>
+                <p className="text-xs text-muted-foreground">Enter your credentials to access your private check-ins.</p>
+              </div>
+
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
                   <FormField
@@ -106,131 +170,263 @@ export default function AuthPage() {
                     name="username"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Username</FormLabel>
+                        <FormLabel className="text-xs font-medium">Username or Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter your username" {...field} />
+                          <div className="relative">
+                            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="e.g. alex@example.com or alex99"
+                              className="pl-9 bg-background/50 text-sm"
+                              disabled={loginMutation.isPending}
+                              {...field}
+                            />
+                          </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={loginForm.control}
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <FormLabel className="text-xs font-medium">Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Enter your password" {...field} />
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type={showLoginPassword ? "text" : "password"}
+                              placeholder="Enter your password"
+                              className="pl-9 pr-9 bg-background/50 text-sm"
+                              disabled={loginMutation.isPending}
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowLoginPassword(!showLoginPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                              tabIndex={-1}
+                              aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                            >
+                              {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary-dark"
+
+                  <Button
+                    type="submit"
+                    className="w-full font-semibold mt-2 gap-2"
                     disabled={loginMutation.isPending}
                   >
-                    {loginMutation.isPending ? "Logging in..." : "Log In"}
+                    {loginMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Signing In...
+                      </>
+                    ) : (
+                      "Sign In"
+                    )}
                   </Button>
                 </form>
               </Form>
+
+              <div className="mt-4 pt-4 border-t border-border/60 text-center">
+                <p className="text-xs text-muted-foreground">
+                  New to ZenGen?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("register")}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Create an account
+                  </button>
+                </p>
+              </div>
             </TabsContent>
 
+            {/* Register Tab */}
             <TabsContent value="register">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-foreground">Join ZenGen</h2>
+                <p className="text-xs text-muted-foreground">Create a private account to track your emotional well-being.</p>
+              </div>
+
               <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
+                <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-3.5">
                   <FormField
                     control={registerForm.control}
                     name="username"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Username</FormLabel>
+                        <FormLabel className="text-xs font-medium">Username or Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="Create a username" {...field} />
+                          <div className="relative">
+                            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Choose a username or email"
+                              className="pl-9 bg-background/50 text-sm"
+                              disabled={registerMutation.isPending}
+                              {...field}
+                            />
+                          </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={registerForm.control}
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Password</FormLabel>
+                        <FormLabel className="text-xs font-medium">Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Create a password" {...field} />
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type={showRegisterPassword ? "text" : "password"}
+                              placeholder="Minimum 6 characters"
+                              className="pl-9 pr-9 bg-background/50 text-sm"
+                              disabled={registerMutation.isPending}
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                              tabIndex={-1}
+                              aria-label={showRegisterPassword ? "Hide password" : "Show password"}
+                            >
+                              {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={registerForm.control}
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Confirm Password</FormLabel>
+                        <FormLabel className="text-xs font-medium">Confirm Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Confirm your password" {...field} />
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type={showConfirmPassword ? "text" : "password"}
+                              placeholder="Re-type your password"
+                              className="pl-9 pr-9 bg-background/50 text-sm"
+                              disabled={registerMutation.isPending}
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                              tabIndex={-1}
+                              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary-dark"
+
+                  <Button
+                    type="submit"
+                    className="w-full font-semibold mt-2 gap-2"
                     disabled={registerMutation.isPending}
                   >
-                    {registerMutation.isPending ? "Creating account..." : "Create Account"}
+                    {registerMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Creating Account...
+                      </>
+                    ) : (
+                      "Create Account"
+                    )}
                   </Button>
                 </form>
               </Form>
+
+              <div className="mt-4 pt-4 border-t border-border/60 text-center">
+                <p className="text-xs text-muted-foreground">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("login")}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Sign in here
+                  </button>
+                </p>
+              </div>
             </TabsContent>
           </Tabs>
         </div>
 
-        {/* Hero Section */}
-        <div className="hidden md:block relative bg-gradient-to-br from-primary to-secondary p-10 text-white">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <img 
-              src="/assets/zengen_logo.png" 
-              alt="ZenGen Logo" 
-              className="w-32 h-32 object-contain mb-6"
-            />
-          </div>
-          <div className="relative z-10 h-full flex flex-col justify-center">
-            <h2 className="text-3xl font-bold mb-4">Supporting Teen Mental Health</h2>
-            <p className="mb-6">ZenGen provides a safe space for teens to assess their mental wellbeing, get support, and access resources designed specifically for them.</p>
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center mr-3">
-                  <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+        {/* Right Side: Hero & Privacy Notice */}
+        <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-primary via-primary/90 to-secondary text-white relative overflow-hidden">
+          <div className="space-y-6 relative z-10">
+            <div className="inline-flex items-center gap-2 bg-white/15 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Safe & Confidential Space</span>
+            </div>
+
+            <h2 className="text-3xl font-extrabold leading-snug">
+              Take Control of Your Mental Well-Being
+            </h2>
+
+            <p className="text-white/85 text-sm leading-relaxed">
+              ZenGen gives you evidence-based tools, AI-guided coping techniques, and verified mental health resources customized for teens.
+            </p>
+
+            <div className="space-y-4 pt-2">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-white/15 backdrop-blur-sm shrink-0">
+                  <Brain className="h-5 w-5 text-white" />
                 </div>
-                <span>Evidence-based assessment tools</span>
+                <div>
+                  <h3 className="font-semibold text-sm">20-Question Wellness Assessment</h3>
+                  <p className="text-xs text-white/75">Scientifically framed across mood, anxiety, and social connection.</p>
+                </div>
               </div>
-              <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center mr-3">
-                  <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-white/15 backdrop-blur-sm shrink-0">
+                  <HeartHandshake className="h-5 w-5 text-white" />
                 </div>
-                <span>AI-powered supportive chat</span>
+                <div>
+                  <h3 className="font-semibold text-sm">Empathetic AI Companion</h3>
+                  <p className="text-xs text-white/75">Actionable coping strategies powered by Google Gemini 3.8 Flash.</p>
+                </div>
               </div>
-              <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center mr-3">
-                  <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-white/15 backdrop-blur-sm shrink-0">
+                  <ShieldCheck className="h-5 w-5 text-white" />
                 </div>
-                <span>Teen-focused resource library</span>
+                <div>
+                  <h3 className="font-semibold text-sm">Data Privacy Guaranteed</h3>
+                  <p className="text-xs text-white/75">Passwords hashed with cryptographic scrypt; your responses remain private.</p>
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="pt-8 text-xs text-white/70 relative z-10 border-t border-white/15">
+            Designed for teen wellness self-reflection. Not a clinical diagnostic service.
           </div>
         </div>
       </div>

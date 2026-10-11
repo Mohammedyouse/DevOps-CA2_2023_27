@@ -1,45 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import EmergencyResources from "@/components/EmergencyResources";
 import { assessmentQuestions } from "@shared/schema";
+import { ArrowLeft, ArrowRight, Brain, Activity, Users } from "lucide-react";
 
 export default function AssessmentQuestion() {
   const params = useParams();
   const [, setLocation] = useLocation();
   const [answers, setAnswers] = useState<Record<string, number>>(() => {
-    // Get stored answers from sessionStorage
     const stored = sessionStorage.getItem("assessment_answers");
     return stored ? JSON.parse(stored) : {};
   });
 
-  const questionId = parseInt(params.id ?? "", 10);
-  const question = assessmentQuestions.find(q => q.id === questionId);
+  const questionId = parseInt(params.id ?? "1", 10);
+  const question = assessmentQuestions.find((q) => q.id === questionId);
 
-  // Calculate which step we're on for the progress indicator
-  const getStep = (id: number) => {
-    if (id <= 3) return 2;  // Mood questions (1-3)
-    if (id <= 6) return 3;  // Thought questions (4-6)
-    return 3; // Default to step 3
+  const totalQuestions = assessmentQuestions.length;
+  const progressPercent = Math.round((questionId / totalQuestions) * 100);
+
+  const getCategoryInfo = (category: string) => {
+    switch (category) {
+      case "mood":
+        return { label: "Mood & Emotions", icon: Brain, color: "text-purple-600 dark:text-purple-400 bg-purple-500/10" };
+      case "anxiety":
+        return { label: "Anxiety & Stress", icon: Activity, color: "text-violet-600 dark:text-violet-400 bg-violet-500/10" };
+      case "social":
+        return { label: "Social Connections", icon: Users, color: "text-cyan-600 dark:text-cyan-400 bg-cyan-500/10" };
+      default:
+        return { label: "Self-Reflection", icon: Brain, color: "text-primary bg-primary/10" };
+    }
   };
 
-  const currentStep = getStep(questionId);
-
   const handleAnswer = (value: string) => {
-    const newAnswers = { ...answers, [questionId]: parseInt(value) };
+    const newAnswers = { ...answers, [questionId]: parseInt(value, 10) };
     setAnswers(newAnswers);
-    // Store answers in sessionStorage
     sessionStorage.setItem("assessment_answers", JSON.stringify(newAnswers));
   };
 
   const handleNext = () => {
-    if (questionId < assessmentQuestions.length) {
+    if (questionId < totalQuestions) {
       setLocation(`/assessment/question/${questionId + 1}`);
     } else {
-      // Go to results
       setLocation("/assessment/results");
     }
   };
@@ -53,78 +59,100 @@ export default function AssessmentQuestion() {
   };
 
   if (!question) {
-    return <div>Question not found</div>;
+    return (
+      <div className="p-4 max-w-3xl mx-auto py-12 text-center">
+        <h2 className="text-lg font-bold text-foreground">Question Not Found</h2>
+        <Button onClick={() => setLocation("/assessment/intro")} className="mt-4">
+          Return to Start
+        </Button>
+      </div>
+    );
   }
 
+  const catInfo = getCategoryInfo(question.category);
+  const CatIcon = catInfo.icon;
+  const currentAnswer = answers[questionId];
+
   return (
-    <div className="p-4 max-w-3xl mx-auto">
-      <div className="py-4">
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">Mental Wellness Assessment</h1>
-        <div className="flex justify-between items-center mb-8">
-          <div className="w-full flex items-center">
-            <div className="relative flex items-center justify-center">
-              <div className={`progress-step ${currentStep >= 1 ? 'active' : ''}`}>1</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium">Intro</div>
-            </div>
-            <div className={`flex-1 h-1 ${currentStep >= 2 ? 'bg-primary' : 'bg-gray-300'} mx-2`}></div>
-            <div className="relative flex items-center justify-center">
-              <div className={`progress-step ${currentStep >= 2 ? 'active' : ''}`}>2</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium text-gray-500">Mood</div>
-            </div>
-            <div className={`flex-1 h-1 ${currentStep >= 3 ? 'bg-primary' : 'bg-gray-300'} mx-2`}></div>
-            <div className="relative flex items-center justify-center">
-              <div className={`progress-step ${currentStep >= 3 ? 'active' : ''}`}>3</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium text-gray-500">Thoughts</div>
-            </div>
-            <div className={`flex-1 h-1 ${currentStep >= 4 ? 'bg-primary' : 'bg-gray-300'} mx-2`}></div>
-            <div className="relative flex items-center justify-center">
-              <div className={`progress-step ${currentStep >= 4 ? 'active' : ''}`}>4</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium text-gray-500">Results</div>
-            </div>
-          </div>
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
+      {/* Progress Indicator */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/40 text-foreground">
+            <CatIcon className="h-3.5 w-3.5 text-primary" /> {catInfo.label}
+          </span>
+          <span>Question {questionId} of {totalQuestions} ({progressPercent}%)</span>
         </div>
+        <Progress value={progressPercent} className="h-2 rounded-full" />
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">{question.text}</h2>
+      <Card className="border border-border bg-card shadow-sm">
+        <CardContent className="p-6 sm:p-8 space-y-6">
+          <div className="space-y-1">
+            <span className="text-xs uppercase tracking-wider font-bold text-primary">
+              Section: {catInfo.label}
+            </span>
+            <h2 className="text-lg sm:text-xl font-bold text-foreground leading-snug">
+              {question.text}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Select the option that best reflects your feelings over the past 2 weeks:
+            </p>
+          </div>
 
           <RadioGroup
-            value={answers[questionId]?.toString() || ""}
+            value={currentAnswer !== undefined ? currentAnswer.toString() : ""}
             onValueChange={handleAnswer}
-            className="space-y-3 mb-8"
+            className="space-y-3 pt-2"
           >
-            {question.options.map((option, index) => (
-              <div key={index} className="flex items-center p-3 bg-neutral-light rounded-lg cursor-pointer hover:bg-neutral transition">
-                <RadioGroupItem
-                  value={option.value.toString()}
-                  id={`option-${index}`}
-                  className="h-5 w-5"
-                />
-                <Label
-                  htmlFor={`option-${index}`}
-                  className="ml-3 text-gray-700 cursor-pointer"
+            {question.options.map((option, index) => {
+              const isSelected = currentAnswer === option.value;
+              return (
+                <div
+                  key={index}
+                  onClick={() => handleAnswer(option.value.toString())}
+                  className={`flex items-center p-4 rounded-xl border cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-sm"
+                      : "border-border bg-card hover:bg-accent/30 hover:border-primary/40"
+                  }`}
                 >
-                  {option.text}
-                </Label>
-              </div>
-            ))}
+                  <RadioGroupItem
+                    value={option.value.toString()}
+                    id={`opt-${index}`}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <Label
+                    htmlFor={`opt-${index}`}
+                    className="ml-3.5 text-sm text-foreground font-medium cursor-pointer flex-1"
+                  >
+                    {option.text}
+                  </Label>
+                </div>
+              );
+            })}
           </RadioGroup>
 
-          <div className="flex justify-between">
+          <div className="flex items-center justify-between pt-4 border-t border-border">
             <Button
               onClick={handlePrevious}
               variant="outline"
-              className="border border-primary text-primary hover:bg-primary-light hover:text-white"
+              size="sm"
+              className="font-semibold text-xs gap-1.5"
             >
-              Previous
+              <ArrowLeft className="h-3.5 w-3.5" /> Previous
             </Button>
             <Button
               onClick={handleNext}
-              disabled={answers[questionId] === undefined}
-              className="bg-primary hover:bg-primary-dark text-white"
+              disabled={currentAnswer === undefined}
+              size="sm"
+              className="font-semibold text-xs gap-1.5 px-5 shadow-sm active:scale-95"
             >
-              {questionId < assessmentQuestions.length ? "Next" : "See Results"}
+              {questionId < totalQuestions ? (
+                <>Next <ArrowRight className="h-3.5 w-3.5" /></>
+              ) : (
+                <>View Results <ArrowRight className="h-3.5 w-3.5" /></>
+              )}
             </Button>
           </div>
         </CardContent>

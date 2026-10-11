@@ -3,49 +3,60 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 20 14.3% 4.1%;
-  --muted: 270 4.8% 95.9%;
-  --muted-foreground: 270 5.3% 44.7%;
+  --background: 250 20% 98%;
+  --foreground: 240 10% 12%;
+  --muted: 250 15% 94%;
+  --muted-foreground: 240 5% 45%;
   --popover: 0 0% 100%;
-  --popover-foreground: 20 14.3% 4.1%;
+  --popover-foreground: 240 10% 12%;
   --card: 0 0% 100%;
-  --card-foreground: 20 14.3% 4.1%;
-  --border: 270 5.9% 90%;
-  --input: 270 5.9% 90%;
-  --primary: 270 76% 60%;     /* #8A4FFF - Purple */
-  --primary-foreground: 270 100% 99%;
-  --secondary: 290 76% 60%;   /* #C54FFF - Magenta/Purple */
-  --secondary-foreground: 290 100% 99%;
-  --accent: 250 76% 90%;      /* Lighter purple */
-  --accent-foreground: 250 10% 10%;
-  --destructive: 0 84.2% 60.2%; /* #E74C3C - Keep red for destructive */
-  --destructive-foreground: 60 9.1% 97.8%;
-  --ring: 270 76% 60%;
-  --radius: 0.5rem;
+  --card-foreground: 240 10% 12%;
+  --border: 240 10% 89%;
+  --input: 240 10% 89%;
+  --primary: 265 83% 58%;         /* #7C3AED - Calm Royal Purple */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 285 75% 55%;       /* Soft Magenta Purple */
+  --secondary-foreground: 0 0% 100%;
+  --accent: 265 60% 94%;          /* Lavender tint */
+  --accent-foreground: 265 80% 40%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 265 83% 58%;
+  --radius: 0.75rem;
+
+  --chart-1: 265 83% 58%;
+  --chart-2: 285 75% 55%;
+  --chart-3: 200 80% 50%;
+  --chart-4: 150 70% 45%;
+  --chart-5: 35 90% 55%;
 }
 
 .dark {
-  --background: 270 20% 10%;
-  --foreground: 270 10% 98%;
-  --muted: 270 15% 15.9%;
-  --muted-foreground: 270 10% 64.9%;
-  --popover: 270 20% 10%;
-  --popover-foreground: 270 10% 98%;
-  --card: 270 20% 10%;
-  --card-foreground: 270 10% 98%;
-  --border: 270 15% 20%;
-  --input: 270 15% 20%;
-  --primary: 270 80% 70%;
-  --primary-foreground: 270 10% 10%;
-  --secondary: 290 80% 65%;
-  --secondary-foreground: 290 10% 10%;
-  --accent: 260 50% 30%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --ring: 270 50% 60%;
-  --radius: 0.5rem;
+  --background: 250 25% 8%;       /* Deep calm violet-black */
+  --foreground: 240 10% 96%;
+  --muted: 250 20% 14%;
+  --muted-foreground: 240 10% 65%;
+  --popover: 250 22% 12%;
+  --popover-foreground: 240 10% 96%;
+  --card: 250 22% 11%;
+  --card-foreground: 240 10% 96%;
+  --border: 250 20% 18%;
+  --input: 250 20% 18%;
+  --primary: 265 85% 68%;         /* Vibrant lavender purple */
+  --primary-foreground: 250 25% 8%;
+  --secondary: 285 75% 65%;
+  --secondary-foreground: 250 25% 8%;
+  --accent: 265 40% 20%;
+  --accent-foreground: 265 85% 85%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 265 85% 68%;
+
+  --chart-1: 265 85% 68%;
+  --chart-2: 285 75% 65%;
+  --chart-3: 200 80% 60%;
+  --chart-4: 150 70% 55%;
+  --chart-5: 35 90% 60%;
 }
 
 @layer base {
@@ -54,33 +65,33 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground transition-colors duration-200;
   }
 }
 
 @layer components {
   .chat-message {
-    @apply max-w-[80%] mb-3 leading-relaxed p-3 rounded-[20px] relative break-words;
+    @apply max-w-[85%] mb-3 leading-relaxed p-4 rounded-2xl relative break-words shadow-sm;
   }
   
   .chat-message-user {
-    @apply ml-auto bg-primary text-white rounded-br-none;
+    @apply ml-auto bg-primary text-primary-foreground rounded-br-sm;
   }
   
   .chat-message-bot {
-    @apply mr-auto bg-accent text-accent-foreground rounded-bl-none;
+    @apply mr-auto bg-muted text-foreground border border-border/60 rounded-bl-sm;
   }
   
   .progress-step {
-    @apply rounded-full h-8 w-8 flex items-center justify-center border-2;
+    @apply rounded-full h-8 w-8 flex items-center justify-center border-2 text-xs font-semibold transition-all duration-200;
   }
   
   .progress-step.active {
-    @apply border-primary bg-primary text-white;
+    @apply border-primary bg-primary text-primary-foreground shadow-sm;
   }
   
   .progress-step:not(.active) {
-    @apply border-gray-300 text-gray-600;
+    @apply border-border bg-card text-muted-foreground;
   }
 }
 

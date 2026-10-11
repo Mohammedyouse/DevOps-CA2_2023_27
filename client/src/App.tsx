@@ -1,6 +1,9 @@
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "./hooks/use-auth";
+import { ProtectedRoute } from "./lib/protected-route";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -13,38 +16,41 @@ import AssessmentResults from "@/pages/AssessmentResults";
 import Chat from "@/pages/Chat";
 import Resources from "@/pages/Resources";
 import Profile from "@/pages/Profile";
+import CrisisSupport from "@/pages/CrisisSupport";
+import AuthPage from "@/pages/auth-page";
 
 import Navigation from "@/components/Navigation";
 import MobileNavigation from "@/components/MobileNavigation";
 
-function AppRoutes() {
+function AuthenticatedApp() {
   return (
     <>
       <Navigation />
-
-      <main className="pt-16 pb-16 md:pb-0">
+      <main className="pt-16 pb-20 md:pb-8 min-h-screen">
         <Switch>
-
-          {/* Redirect root → home */}
+          {/* Root redirect to home */}
           <Route path="/">
             <Redirect to="/home" />
           </Route>
 
-          {/* Normal routes (no auth) */}
-          <Route path="/home" component={Home} />
-          <Route path="/assessment" component={Assessment} />
-          <Route path="/assessment/intro" component={AssessmentIntro} />
-          <Route path="/assessment/question/:id" component={AssessmentQuestion} />
-          <Route path="/assessment/results" component={AssessmentResults} />
-          <Route path="/chat" component={Chat} />
-          <Route path="/resources" component={Resources} />
-          <Route path="/profile" component={Profile} />
+          {/* Authentication Page */}
+          <Route path="/auth" component={AuthPage} />
+
+          {/* Protected routes */}
+          <ProtectedRoute path="/home" component={Home} />
+          <ProtectedRoute path="/assessment" component={Assessment} />
+          <ProtectedRoute path="/assessment/intro" component={AssessmentIntro} />
+          <ProtectedRoute path="/assessment/question/:id" component={AssessmentQuestion} />
+          <ProtectedRoute path="/assessment/results" component={AssessmentResults} />
+          <ProtectedRoute path="/chat" component={Chat} />
+          <ProtectedRoute path="/resources" component={Resources} />
+          <ProtectedRoute path="/profile" component={Profile} />
+          <ProtectedRoute path="/crisis" component={CrisisSupport} />
 
           {/* 404 fallback */}
           <Route component={NotFound} />
         </Switch>
       </main>
-
       <MobileNavigation />
     </>
   );
@@ -52,14 +58,18 @@ function AppRoutes() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div className="min-h-screen bg-gray-50">
-          <AppRoutes />
-        </div>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
+              <AuthenticatedApp />
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

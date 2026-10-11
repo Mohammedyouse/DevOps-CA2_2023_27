@@ -5,7 +5,7 @@ import {
   resources, type Resource, type InsertResource
 } from "../shared/schema.js";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // Storage interface remains the same
 export interface IStorage {
@@ -16,12 +16,14 @@ export interface IStorage {
   updateUserPassword(id: number, password: string): Promise<User | undefined>;
 
   // Assessment methods
-  createAssessment(assessment: { answers: Record<string, number>, results?: any }): Promise<Assessment>;
+  createAssessment(assessment: { userId?: number | null, answers: Record<string, number>, results?: any }): Promise<Assessment>;
   getAssessments(): Promise<Assessment[]>;
+  getAssessmentsByUserId(userId: number): Promise<Assessment[]>;
 
   // Chat methods
-  createChatMessage(message: { role: string, content: string }): Promise<ChatMessage>;
+  createChatMessage(message: { userId?: number | null, role: string, content: string }): Promise<ChatMessage>;
   getChatMessages(): Promise<ChatMessage[]>;
+  getChatMessagesByUserId(userId: number): Promise<ChatMessage[]>;
 
   // Resource methods
   createResource(resource: {
@@ -45,7 +47,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const results = await db.select().from(users).where(eq(users.username, username));
+    const trimmed = (username || "").trim();
+    if (!trimmed) return undefined;
+    const results = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.username}) = lower(${trimmed})`);
     return results.length > 0 ? results[0] : undefined;
   }
 
@@ -65,9 +72,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Assessment methods
-  async createAssessment(assessmentData: { answers: Record<string, number>, results?: any }): Promise<Assessment> {
+  async createAssessment(assessmentData: { userId?: number | null, answers: Record<string, number>, results?: any }): Promise<Assessment> {
     const insertData: InsertAssessment = {
-      userId: null, // Anonymous assessment for now
+      userId: assessmentData.userId ?? null,
       answers: assessmentData.answers,
       results: assessmentData.results || null
     };
@@ -80,10 +87,14 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(assessments);
   }
 
+  async getAssessmentsByUserId(userId: number): Promise<Assessment[]> {
+    return await db.select().from(assessments).where(eq(assessments.userId, userId));
+  }
+
   // Chat methods
-  async createChatMessage(messageData: { role: string, content: string }): Promise<ChatMessage> {
+  async createChatMessage(messageData: { userId?: number | null, role: string, content: string }): Promise<ChatMessage> {
     const insertData: InsertChatMessage = {
-      userId: null, // Anonymous message for now
+      userId: messageData.userId ?? null,
       role: messageData.role,
       content: messageData.content
     };
@@ -94,6 +105,10 @@ export class DatabaseStorage implements IStorage {
 
   async getChatMessages(): Promise<ChatMessage[]> {
     return await db.select().from(chatMessages);
+  }
+
+  async getChatMessagesByUserId(userId: number): Promise<ChatMessage[]> {
+    return await db.select().from(chatMessages).where(eq(chatMessages.userId, userId));
   }
 
   // Resource methods

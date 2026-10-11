@@ -91,6 +91,12 @@ kubectl apply -f devops/kubernetes/service.yaml
 kubectl rollout status deployment/zengen-deployment
 ```
 
+### 5. Production Live Deployment (Netlify)
+The application is deployed live in production on Netlify Edge with serverless functions and CDN distribution:
+* **Live Web Application**: [https://zengen-prediction-platform.netlify.app](https://zengen-prediction-platform.netlify.app)
+* **Health Check Endpoint**: [https://zengen-prediction-platform.netlify.app/health](https://zengen-prediction-platform.netlify.app/health)
+* **API Resources Endpoint**: [https://zengen-prediction-platform.netlify.app/api/resources](https://zengen-prediction-platform.netlify.app/api/resources)
+
 ---
 
 ## 📁 Repository Structure

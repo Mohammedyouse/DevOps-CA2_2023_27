@@ -1,18 +1,23 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
+import { useLocation, Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Heart, Book, Users, AlertTriangle,
-  Brain, UserCheck, ThumbsUp, Activity
+  Brain, UserCheck, ThumbsUp, Activity,
+  RotateCcw, MessageSquare, BookOpen, ShieldAlert,
+  Sparkles, CheckCircle2, TrendingUp, BarChart3
 } from "lucide-react";
 import EmergencyResources from "@/components/EmergencyResources";
-import MentalHealthRadarChart from "@/components/MentalHealthRadarChart";
+import {
+  MentalHealthRadarChart,
+  MentalHealthBarChart,
+  AssessmentTrendChart,
+} from "@/components/AssessmentVisualizations";
 import {
   analyzeAssessmentResults,
   type AssessmentResult,
-  type MentalHealthPrediction
 } from "@/lib/openai";
 import { useQuery } from "@tanstack/react-query";
 
@@ -21,241 +26,277 @@ export default function AssessmentResults() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    // Get stored answers from sessionStorage
     const stored = sessionStorage.getItem("assessment_answers");
     if (stored) {
-      setAnswers(JSON.parse(stored));
-    } else {
-      // Redirect to intro if no answers
-      setLocation("/assessment/intro");
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+          setAnswers(parsed);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to parse stored answers:", e);
+      }
     }
+    // If no answers stored, redirect to intro
+    setLocation("/assessment/intro");
   }, [setLocation]);
 
+  // Query assessment analysis
   const { data: results, isLoading, error } = useQuery({
-    queryKey: ['/api/assessment/analyze'],
+    queryKey: ['/api/assessment/analyze', answers],
     queryFn: async () => {
       if (Object.keys(answers).length === 0) return null;
       return analyzeAssessmentResults(answers);
     },
-    enabled: Object.keys(answers).length > 0
+    enabled: Object.keys(answers).length > 0,
+    staleTime: Infinity, // Don't refetch on tab switch
   });
 
-  const handleViewDetailedReport = () => {
-    // In a real app, this would show more detailed results or generate a PDF
-    alert("Detailed report feature coming soon!");
-  };
+  // Query historical assessments for trend chart
+  const { data: history = [] } = useQuery<any[]>({
+    queryKey: ['/api/assessment/history'],
+    queryFn: async () => {
+      const res = await fetch('/api/assessment/history');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
-  const handleTalkToAssistant = () => {
-    setLocation("/chat");
+  const handleRetake = () => {
+    sessionStorage.removeItem("assessment_answers");
+    setLocation("/assessment/intro");
   };
 
   if (isLoading) {
     return (
-      <div className="p-4 max-w-3xl mx-auto">
-        <div className="py-4">
-          <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">Analyzing Your Results</h1>
-          <Card className="p-6 mb-6 text-center">
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
-                <p className="text-gray-600">Please wait while we analyze your assessment...</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 max-w-3xl mx-auto">
-        <Card className="p-6 mb-6">
-          <CardContent>
-            <div className="text-center py-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Something went wrong</h2>
-              <p className="text-gray-600 mb-6">We couldn't process your assessment results. Please try again.</p>
-              <Button onClick={() => setLocation("/assessment/intro")}>
-                Start Over
-              </Button>
+      <div className="p-4 max-w-3xl mx-auto py-12">
+        <Card className="p-8 text-center border border-border">
+          <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              <Brain className="h-6 w-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
             </div>
+            <h2 className="text-xl font-bold text-foreground">Analyzing Your Responses</h2>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Evaluating your scores across mood regulation, anxiety indicators, and social connectivity...
+            </p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (!results) {
+  if (error || !results) {
     return (
-      <div className="p-4 max-w-3xl mx-auto">
-        <Card className="p-6 mb-6">
-          <CardContent>
-            <div className="text-center py-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">No Results Available</h2>
-              <p className="text-gray-600 mb-6">Please complete the assessment to see your results.</p>
-              <Button onClick={() => setLocation("/assessment/intro")}>
-                Take Assessment
-              </Button>
-            </div>
+      <div className="p-4 max-w-3xl mx-auto py-12">
+        <Card className="border border-border">
+          <CardContent className="text-center py-12 space-y-4">
+            <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
+            <h2 className="text-xl font-bold text-foreground">Unable to Calculate Results</h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              We encountered an issue processing your assessment. Please try taking the questionnaire again.
+            </p>
+            <Button onClick={() => setLocation("/assessment/intro")} className="font-semibold">
+              <RotateCcw className="h-4 w-4 mr-2" /> Start Assessment
+            </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  // Format historical trend data
+  const trendHistory = history
+    .filter((h) => h.results && h.results.overallScore !== undefined)
+    .map((h) => ({
+      id: h.id,
+      createdAt: h.createdAt || new Date().toISOString(),
+      overallScore: h.results.overallScore,
+    }));
+
+  const getScoreBadge = (score: number) => {
+    if (score >= 70) {
+      return { label: "Optimal Resilience", color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" };
+    }
+    if (score >= 45) {
+      return { label: "Moderate Balance", color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30" };
+    }
+    return { label: "Support Recommended", color: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30" };
+  };
+
+  const badge = getScoreBadge(results.overallScore);
 
   return (
-    <div className="p-4 max-w-3xl mx-auto">
-      <div className="py-4">
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">Mental Wellness Assessment</h1>
-        <div className="flex justify-between items-center mb-8">
-          <div className="w-full flex items-center">
-            <div className="relative flex items-center justify-center">
-              <div className="progress-step active">1</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium">Intro</div>
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-8">
+      {/* Progress header */}
+      <div className="py-2">
+        <div className="flex justify-between items-center max-w-md mx-auto">
+          {["Intro", "Mood", "Thoughts", "Results"].map((label, idx) => (
+            <div key={label} className="flex items-center">
+              <div className="relative flex flex-col items-center">
+                <div className="progress-step active">{idx + 1}</div>
+                <span className="text-[11px] font-semibold mt-1 text-primary">{label}</span>
+              </div>
+              {idx < 3 && <div className="w-12 sm:w-16 h-1 bg-primary mx-1 sm:mx-2 rounded" />}
             </div>
-            <div className="flex-1 h-1 bg-primary mx-2"></div>
-            <div className="relative flex items-center justify-center">
-              <div className="progress-step active">2</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium">Mood</div>
-            </div>
-            <div className="flex-1 h-1 bg-primary mx-2"></div>
-            <div className="relative flex items-center justify-center">
-              <div className="progress-step active">3</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium">Thoughts</div>
-            </div>
-            <div className="flex-1 h-1 bg-primary mx-2"></div>
-            <div className="relative flex items-center justify-center">
-              <div className="progress-step active">4</div>
-              <div className="absolute -bottom-6 w-max text-xs font-medium">Results</div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Mental Wellness Results</h2>
-
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Overall Wellness Score</span>
-              <span className="text-sm font-medium text-primary">{results.overallScore}/100</span>
+      {/* Main Results Card */}
+      <Card className="border border-border bg-card shadow-sm overflow-hidden">
+        <CardHeader className="bg-primary/5 border-b border-border pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border mb-2 ${badge.color}`}>
+                {badge.label}
+              </span>
+              <CardTitle className="text-2xl font-bold text-foreground">
+                Your Mental Wellness Summary
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Generated from your answers across 20 evidence-based self-reflection questions.
+              </CardDescription>
             </div>
-            <Progress value={results.overallScore} className="h-3" />
-            <p className="mt-2 text-sm text-gray-600">{results.summary}</p>
-          </div>
-
-          <div className="mb-8">
-            <div className="mb-4">
-              <h3 className="font-medium text-gray-800 mb-2">Your Mental Health Profile</h3>
-              <p className="text-sm text-gray-600">This radar chart shows your scores across different mental health dimensions.</p>
-            </div>
-
-            <div className="bg-neutral-light p-4 rounded-lg">
-              <MentalHealthRadarChart
-                moodScore={results.moodScore}
-                anxietyScore={results.anxietyScore}
-                socialScore={results.socialScore}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              <div className="bg-accent/20 p-3 rounded-lg">
-                <h4 className="font-medium text-gray-800 mb-1">Mood & Emotions</h4>
-                <div className="flex items-center mb-1">
-                  <Progress value={results.moodScore} className="h-2 mr-2" />
-                  <span className="text-sm text-gray-600">{results.moodScore}%</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Higher score indicates better mood regulation</p>
-              </div>
-
-              <div className="bg-accent/20 p-3 rounded-lg">
-                <h4 className="font-medium text-gray-800 mb-1">Anxiety Levels</h4>
-                <div className="flex items-center mb-1">
-                  <Progress value={results.anxietyScore} className="h-2 mr-2" />
-                  <span className="text-sm text-gray-600">{results.anxietyScore}%</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Higher score indicates lower anxiety levels</p>
-              </div>
-
-              <div className="bg-accent/20 p-3 rounded-lg">
-                <h4 className="font-medium text-gray-800 mb-1">Social Connections</h4>
-                <div className="flex items-center mb-1">
-                  <Progress value={results.socialScore} className="h-2 mr-2" />
-                  <span className="text-sm text-gray-600">{results.socialScore}%</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Higher score indicates better social well-being</p>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="text-3xl font-extrabold text-primary">{results.overallScore}<span className="text-sm font-medium text-muted-foreground">/100</span></div>
+                <div className="text-[11px] text-muted-foreground">Overall Index</div>
               </div>
             </div>
           </div>
+        </CardHeader>
 
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <h3 className="font-medium text-gray-800 mb-2">What These Results Mean</h3>
-            <p className="text-gray-600 text-sm">
+        <CardContent className="p-6 space-y-8">
+          {/* AI Summary Insight */}
+          <div className="p-4 rounded-2xl bg-accent/30 border border-primary/20 space-y-2">
+            <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+              <Sparkles className="h-4 w-4" /> AI Wellness Analysis
+            </div>
+            <p className="text-sm text-foreground/90 leading-relaxed">
               {results.summary}
             </p>
           </div>
 
-          {/* Mental Health Predictions Section */}
-          <div className="mb-6">
-            <h3 className="font-medium text-gray-800 mb-3">Mental Health Screening Results</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Based on your responses, we've generated the following mental health screening results.
-              These are not diagnoses but potential indicators to discuss with a healthcare professional.
-            </p>
-            <div className="space-y-4">
-              {results.predictions.map((prediction, index) => {
-                // Choose icon and background color based on condition and severity
-                let Icon = Brain;
-                let bgColor = "bg-neutral-light";
+          {/* Visualizations Section: Radar and Bar side-by-side */}
+          <div>
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" /> Dimension Breakdown
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Compare your scores across Mood Regulation, Anxiety Management, and Social Connectivity.
+              </p>
+            </div>
 
-                if (prediction.condition === "Depression") {
-                  Icon = Brain;
-                  bgColor = prediction.severity === "none" ? "bg-green-50" :
-                    prediction.severity === "mild" ? "bg-yellow-50" :
-                      prediction.severity === "moderate" ? "bg-orange-50" : "bg-red-50";
-                } else if (prediction.condition === "Anxiety") {
-                  Icon = Activity;
-                  bgColor = prediction.severity === "none" ? "bg-green-50" :
-                    prediction.severity === "mild" ? "bg-yellow-50" :
-                      prediction.severity === "moderate" ? "bg-orange-50" : "bg-red-50";
-                } else if (prediction.condition === "Social Isolation") {
-                  Icon = Users;
-                  bgColor = prediction.severity === "none" ? "bg-green-50" :
-                    prediction.severity === "mild" ? "bg-yellow-50" :
-                      prediction.severity === "moderate" ? "bg-orange-50" : "bg-red-50";
-                } else if (prediction.condition === "Positive Mental Health") {
-                  Icon = ThumbsUp;
-                  bgColor = "bg-green-50";
-                }
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              <div className="p-4 rounded-2xl bg-card border border-border flex flex-col items-center">
+                <span className="text-xs font-semibold text-muted-foreground mb-2">Radar Dimension Mapping</span>
+                <MentalHealthRadarChart
+                  moodScore={results.moodScore}
+                  anxietyScore={results.anxietyScore}
+                  socialScore={results.socialScore}
+                />
+              </div>
+
+              <div className="p-4 rounded-2xl bg-card border border-border flex flex-col items-center">
+                <span className="text-xs font-semibold text-muted-foreground mb-2">Category Score Comparison</span>
+                <MentalHealthBarChart
+                  moodScore={results.moodScore}
+                  anxietyScore={results.anxietyScore}
+                  socialScore={results.socialScore}
+                />
+              </div>
+            </div>
+
+            {/* Individual Dimension Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-4">
+              <div className="p-4 rounded-xl border border-border bg-card space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-foreground">Mood & Emotions</span>
+                  <span className="text-xs font-bold text-primary">{results.moodScore}%</span>
+                </div>
+                <Progress value={results.moodScore} className="h-2" />
+                <p className="text-[11px] text-muted-foreground">Measures optimism, energy, and joy.</p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border bg-card space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-foreground">Anxiety Regulation</span>
+                  <span className="text-xs font-bold text-primary">{results.anxietyScore}%</span>
+                </div>
+                <Progress value={results.anxietyScore} className="h-2" />
+                <p className="text-[11px] text-muted-foreground">Higher score indicates lower daily anxiety.</p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border bg-card space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-foreground">Social Well-Being</span>
+                  <span className="text-xs font-bold text-primary">{results.socialScore}%</span>
+                </div>
+                <Progress value={results.socialScore} className="h-2" />
+                <p className="text-[11px] text-muted-foreground">Reflects peer support and belonging.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Historical Trend Chart (when user has multiple assessments) */}
+          {trendHistory.length > 1 && (
+            <div className="border border-border rounded-2xl p-5 bg-card space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary" /> Your Historical Wellness Trend
+                  </h4>
+                  <p className="text-xs text-muted-foreground">Tracking your overall wellness across {trendHistory.length} assessments.</p>
+                </div>
+              </div>
+              <AssessmentTrendChart history={trendHistory} />
+            </div>
+          )}
+
+          {/* Screen Indicators */}
+          <div className="space-y-3">
+            <h3 className="text-base font-bold text-foreground">Potential Wellness Indicators</h3>
+            <div className="space-y-3">
+              {results.predictions?.map((pred, i) => {
+                const isPositive = pred.condition === "Positive Mental Health";
+                const isModerateOrSevere = pred.severity === "moderate" || pred.severity === "severe";
 
                 return (
-                  <div key={index} className={`${bgColor} p-4 rounded-lg`}>
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 mr-3 mt-1">
-                        <Icon className="h-5 w-5 text-gray-600" />
+                  <div
+                    key={i}
+                    className={`p-4 rounded-2xl border transition-colors ${
+                      isPositive
+                        ? "bg-emerald-500/10 border-emerald-500/30"
+                        : isModerateOrSevere
+                        ? "bg-amber-500/10 border-amber-500/30"
+                        : "bg-muted/40 border-border"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5">
+                        {isPositive ? (
+                          <ThumbsUp className="h-5 w-5 text-emerald-500" />
+                        ) : pred.condition.includes("Anxiety") ? (
+                          <Activity className="h-5 w-5 text-amber-500" />
+                        ) : (
+                          <Brain className="h-5 w-5 text-purple-500" />
+                        )}
                       </div>
-                      <div>
-                        <div className="flex items-center mb-1">
-                          <h4 className="font-medium text-gray-800">{prediction.condition}</h4>
-                          {prediction.severity !== "none" && (
-                            <span className={`ml-2 text-xs px-2 py-0.5 rounded ${prediction.severity === "mild" ? "bg-yellow-100 text-yellow-800" :
-                                prediction.severity === "moderate" ? "bg-orange-100 text-orange-800" :
-                                  prediction.severity === "severe" ? "bg-red-100 text-red-800" : ""
-                              }`}>
-                              {prediction.severity.charAt(0).toUpperCase() + prediction.severity.slice(1)}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-sm text-foreground">{pred.condition}</h4>
+                          {pred.severity !== "none" && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-background border border-border">
+                              {pred.severity}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 mb-2">{prediction.description}</p>
-                        {prediction.severity !== "none" && prediction.condition !== "Positive Mental Health" && (
-                          <div className="flex items-center text-xs text-gray-500">
-                            <AlertTriangle className="h-3.5 w-3.5 mr-1 text-gray-400" />
-                            <span>
-                              This is not a diagnosis. Please consult with a healthcare professional if you're concerned.
-                            </span>
-                          </div>
-                        )}
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {pred.description}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -264,38 +305,58 @@ export default function AssessmentResults() {
             </div>
           </div>
 
-          <div className="mb-6">
-            <h3 className="font-medium text-gray-800 mb-3">Recommendations For You</h3>
-            <div className="space-y-3">
-              {results.recommendations.map((rec, index) => (
-                <div key={index} className="flex bg-neutral-light p-3 rounded-lg">
-                  <div className="flex-shrink-0 text-primary mr-3">
-                    {rec.icon === "heart" && <Heart className="h-5 w-5" />}
-                    {rec.icon === "book" && <Book className="h-5 w-5" />}
-                    {rec.icon === "users" && <Users className="h-5 w-5" />}
+          {/* Actionable Recommendations */}
+          <div className="space-y-3">
+            <h3 className="text-base font-bold text-foreground">Suggested Action Steps</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {results.recommendations?.map((rec, i) => (
+                <div key={i} className="p-4 rounded-2xl border border-border bg-card flex flex-col justify-between space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                      {rec.icon === "heart" ? <Heart className="h-4 w-4" /> : rec.icon === "book" ? <Book className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                    </div>
+                    <h4 className="text-sm font-semibold text-foreground">{rec.title}</h4>
                   </div>
-                  <div>
-                    <h4 className="font-medium text-gray-800">{rec.title}</h4>
-                    <p className="text-sm text-gray-600">{rec.description}</p>
-                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {rec.description}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-3">
+          {/* Clinical Disclaimer Alert */}
+          <div className="p-4 rounded-2xl bg-muted/60 border border-border flex items-start gap-3 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div>
+              <strong>Mental Wellness Self-Reflection Notice:</strong> ZenGen is not a medical device and does not provide clinical diagnoses. These results are designed to foster personal self-awareness. If you are experiencing persistent distress, please consult a licensed mental health professional.
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <Button
-              onClick={handleViewDetailedReport}
-              className="bg-primary hover:bg-primary-dark text-white"
+              onClick={handleRetake}
+              variant="outline"
+              className="font-semibold text-xs gap-1.5"
             >
-              View Detailed Report
+              <RotateCcw className="h-3.5 w-3.5" /> Retake Assessment
             </Button>
-            <Button
-              onClick={handleTalkToAssistant}
-              className="bg-secondary hover:bg-secondary-dark text-white"
-            >
-              Talk to AI Assistant
-            </Button>
+            <Link href="/chat">
+              <Button className="font-semibold text-xs gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" /> Discuss with AI Assistant
+              </Button>
+            </Link>
+            <Link href="/resources">
+              <Button variant="secondary" className="font-semibold text-xs gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" /> Explore Recommended Resources
+              </Button>
+            </Link>
+            <Link href="/crisis">
+              <Button variant="destructive" className="font-semibold text-xs gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5" /> Crisis Support
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

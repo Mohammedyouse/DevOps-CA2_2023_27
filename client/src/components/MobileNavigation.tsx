@@ -1,43 +1,39 @@
-import { useLocation } from "wouter";
-import { Link } from "wouter";
-import { Home, ClipboardCheck, MessageCircle, BookOpen, User } from "lucide-react";
+import { useLocation, Link } from "wouter";
+import { Home, Brain, MessageSquare, BookOpen, ShieldAlert, User } from "lucide-react";
 
 export default function MobileNavigation() {
   const [location] = useLocation();
 
+  const links = [
+    { href: "/home", label: "Home", icon: Home },
+    { href: "/assessment/intro", label: "Assessment", icon: Brain },
+    { href: "/chat", label: "Chat", icon: MessageSquare },
+    { href: "/resources", label: "Resources", icon: BookOpen },
+    { href: "/crisis", label: "Crisis", icon: ShieldAlert },
+    { href: "/profile", label: "Profile", icon: User },
+  ];
+
   return (
-    <div className="fixed bottom-0 inset-x-0 bg-white shadow-lg rounded-t-xl md:hidden z-40">
-      <div className="flex justify-around px-2 py-3">
-        <Link href="/home">
-          <div className={`flex flex-col items-center cursor-pointer ${location === '/home' ? 'text-primary' : 'text-gray-500 hover:text-primary'}`}>
-            <Home className="w-5 h-5" />
-            <span className="text-xs mt-1">Home</span>
-          </div>
-        </Link>
-        <Link href="/assessment/intro">
-          <div className={`flex flex-col items-center cursor-pointer ${location.startsWith('/assessment') ? 'text-primary' : 'text-gray-500 hover:text-primary'}`}>
-            <ClipboardCheck className="w-5 h-5" />
-            <span className="text-xs mt-1">Assessment</span>
-          </div>
-        </Link>
-        <Link href="/chat">
-          <div className={`flex flex-col items-center cursor-pointer ${location === '/chat' ? 'text-primary' : 'text-gray-500 hover:text-primary'}`}>
-            <MessageCircle className="w-5 h-5" />
-            <span className="text-xs mt-1">Chat</span>
-          </div>
-        </Link>
-        <Link href="/resources">
-          <div className={`flex flex-col items-center cursor-pointer ${location === '/resources' ? 'text-primary' : 'text-gray-500 hover:text-primary'}`}>
-            <BookOpen className="w-5 h-5" />
-            <span className="text-xs mt-1">Resources</span>
-          </div>
-        </Link>
-        <Link href="/profile">
-          <div className={`flex flex-col items-center cursor-pointer ${location === '/profile' ? 'text-primary' : 'text-gray-500 hover:text-primary'}`}>
-            <User className="w-5 h-5" />
-            <span className="text-xs mt-1">Profile</span>
-          </div>
-        </Link>
+    <div className="fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur-md border-t border-border md:hidden z-40 transition-colors">
+      <div className="flex justify-around items-center px-2 py-2">
+        {links.map((link) => {
+          const isActive = location === link.href || (link.href !== "/home" && location.startsWith(link.href.replace("/intro", "")));
+          const Icon = link.icon;
+          return (
+            <Link key={link.href} href={link.href}>
+              <div
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg cursor-pointer transition-colors ${
+                  isActive
+                    ? "text-primary font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className={`w-5 h-5 ${isActive ? "text-primary" : ""}`} />
+                <span className="text-[10px] mt-1 tracking-tight">{link.label}</span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
