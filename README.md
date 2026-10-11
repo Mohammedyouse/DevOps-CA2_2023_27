@@ -11,15 +11,7 @@
 
 ---
 
-## 📋 Submission Details
 
-* **Student:** Mohammed Yousef Saeed Al-Hajj
-* **PRN:** 23070122141
-* **Course:** DevOps + Lab (Continuous Assessment II)
-* **Semester / Batch:** Seventh Semester | B.Tech 2023–2027
-* **Group:** 25
-* **PR Base Repository (Faculty):** [https://github.com/aditisharmas11/DevOps-CA2_2023_27](https://github.com/aditisharmas11/DevOps-CA2_2023_27)
-* **Fork / Push Destination:** [https://github.com/Mohammedyouse/DevOps-CA2_2023_27](https://github.com/Mohammedyouse/DevOps-CA2_2023_27)
 * **Live Production URL:** [https://zengen-prediction-platform.netlify.app](https://zengen-prediction-platform.netlify.app)
 * **External Hackathon Submission:** [https://devpost.com/software/zengen-ai-powered-mental-wellness-platform](https://devpost.com/software/zengen-ai-powered-mental-wellness-platform)
 
@@ -29,16 +21,13 @@
 
 **ZenGen** is an AI-powered mental wellness platform designed specifically for adolescents and students. It integrates validated clinical questionnaires (mood, anxiety, social wellness), Google Gemini 3.8 Flash supportive AI counseling, automated crisis escalation (988 Lifeline & Crisis Text Line), and verified psychiatric educational resources.
 
-For the **DevOps CA-II** assessment, ZenGen demonstrates full-lifecycle engineering:
+
 1. **GitHub Actions CI/CD**: Automated linting, TypeScript type checking, unit tests, Kubernetes manifest validation (`kubeconform`), and KinD rolling update/rollback demonstration.
 2. **Docker Containerization**: Multi-stage Node.js container with strict `.dockerignore` hygiene.
 3. **Kubernetes Orchestration**: High-availability 2-replica Deployment with HTTP health probes and NodePort Service.
 4. **Ansible Automation**: Playbook and inventory configuring service users and application paths.
 5. **Prometheus & Grafana Observability**: Instrumenting process metrics, request counters, error rates, and p95 latency via `@prometheus-io/client` and custom 5-panel dashboard.
 6. **Production Edge Hosting**: Netlify CDN and serverless API integration.
-
-> 📖 **Full DevOps Engineering Documentation & Evidence:**  
-> Please see the detailed report in [**`devops/README.md`**](devops/README.md).
 
 ---
 
@@ -90,12 +79,6 @@ kubectl apply -f devops/kubernetes/service.yaml
 # Monitor rollout
 kubectl rollout status deployment/zengen-deployment
 ```
-
-### 5. Production Live Deployment (Netlify)
-The application is deployed live in production on Netlify Edge with serverless functions and CDN distribution:
-* **Live Web Application**: [https://zengen-prediction-platform.netlify.app](https://zengen-prediction-platform.netlify.app)
-* **Health Check Endpoint**: [https://zengen-prediction-platform.netlify.app/health](https://zengen-prediction-platform.netlify.app/health)
-* **API Resources Endpoint**: [https://zengen-prediction-platform.netlify.app/api/resources](https://zengen-prediction-platform.netlify.app/api/resources)
 
 ---
 
